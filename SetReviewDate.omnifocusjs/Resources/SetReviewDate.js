@@ -12,9 +12,6 @@ var _ = function() {
             flattenedProjects.forEach((project) => {
                 project.nextReviewDate = newReviewDate;
             });
-        }).catch(function () {
-            let errorMessage = new Alert('Error', 'Sorry, something went wrong setting the review date!');
-            errorMessage.show();
         });
     });
 
