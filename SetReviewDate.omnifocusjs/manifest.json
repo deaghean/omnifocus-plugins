@@ -1,0 +1,12 @@
+{
+	"identifier": "com.josh-hughes.omnifocusplugins.SetReviewDate",
+	"author": "Josh Hughes",
+	"description": "Choose a new review date for all projects",
+	"version": "1.0",
+	"actions": [
+		{ 
+		    "image":"icon.png",
+		    "identifier": "SetReviewDate"
+		},
+	]
+}
