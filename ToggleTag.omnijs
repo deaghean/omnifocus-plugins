@@ -1,0 +1,82 @@
+/*{
+    "author": "Josh Hughes",
+    "targets": ["omnifocus"],
+    "type": "action",
+    "version": "1.0",
+    "description": "Toggle a given tag",
+    "label" : "Toggle Tag"
+}*/
+(() => {
+
+    // INSTRUCTIONS:
+    // Replace 'NAME OF TAG' with the tag you would like to toggle.
+    // If, when this plugin adds the given tag, you would like it to remove all
+    // sibling tags as well, set removeSiblingTags to true (no quotes)
+
+    const tagName           = 'NAME OF TAG',
+          removeSiblingTags = false;
+          
+    let selectedTag = null,
+        siblingTags = [];
+    
+    const tagableItems = (objects) => {
+        return objects.filter(item => (item instanceof Task || item instanceof Project));
+    }
+    
+    const firstItemHasTag = (selection, selectedTag) => {
+        return new Set(selection.tags).has(selectedTag);
+    }
+    
+    const findTagAndSiblings = (tagGroup) => {
+        if (typeof tagGroup === 'undefined') {
+            tagGroup = tags;
+        }
+        tagGroup.forEach((testedTag) => {
+            if (testedTag.name === tagName) {
+                selectedTag = testedTag;
+                siblingTags = tagGroup;
+                return true;
+            } else {
+                let childTest = findTagAndSiblings(testedTag.tags);
+                if (childTest) {
+                    return true;
+                }
+            }
+        });
+        return false;
+    }
+    
+    const action = new PlugIn.Action((selection) => {
+        const items = tagableItems(selection.allObjects);
+        findTagAndSiblings();
+
+        if (firstItemHasTag(items[0], selectedTag)) {
+            items.forEach(item => item.removeTag(selectedTag));
+        } else {
+            items.forEach((item) => {
+                if (removeSiblingTags) {
+                    item.removeTags(siblingTags);
+                }
+                item.addTag(selectedTag);
+            });
+        }
+    });
+
+    action.validate = (selection, sender) => {
+        const items = tagableItems(selection.allObjects);
+        findTagAndSiblings();
+        
+        sender.label = 'Tag: ' + tagName;
+        if (selectedTag && items[0]) {
+            sender.checked = firstItemHasTag(items[0], selectedTag);
+            return true;
+        }
+		
+		if (!selectedTag) {
+            sender.label += ' (Not Found)';
+        }
+		return false;
+	};
+        
+    return action;
+})();
