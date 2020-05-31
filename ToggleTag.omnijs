@@ -66,13 +66,17 @@
         const items = tagableItems(selection.allObjects);
         findTagAndSiblings();
         
-        sender.label = 'Tag: ' + tagName;
+        if (typeof sender !== 'undefined') {
+            sender.label = 'Tag: ' + tagName;
+        }
         if (selectedTag && items[0]) {
-            sender.checked = firstItemHasTag(items[0], selectedTag);
+            if (typeof sender !== 'undefined') {
+                sender.checked = firstItemHasTag(items[0], selectedTag);
+            }
             return true;
         }
 		
-		if (!selectedTag) {
+		if (!selectedTag && typeof sender !== 'undefined') {
             sender.label += ' (Not Found)';
         }
 		return false;
