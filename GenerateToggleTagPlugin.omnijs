@@ -1,0 +1,207 @@
+/*{
+    "author": "Josh Hughes",
+    "targets": ["omnifocus"],
+    "type": "action",
+    "identifier": "com.josh-hughes.omnifocusplugins.GenerateToggleTagPlugin",
+    "version": "1.0",
+    "description": "Generates a plugin that contains Toggle Tag actions for every tag in your library",
+    "label": "Generate Toggle Tag Plugin",
+    "mediumLabel": "Generate Tag Plugin",
+    "paletteLabel": "Generate Tag Plugin",
+}*/
+(() => {
+const action = new PlugIn.Action(function() {
+
+const toggleTagForm = new Form();
+const fieldPluginName = new Form.Field.String('pluginName', 'Name of Plugin', 'Toggle Tag');
+const fieldRemoveSiblingTags = new Form.Field.Checkbox('removeSiblingTags', 'When adding a tag, remove other sibling tags', false);
+toggleTagForm.addField(fieldPluginName);
+toggleTagForm.addField(fieldRemoveSiblingTags);
+const toggleTagFormPromise = toggleTagForm.show('Choose a Plugin Name and Options', 'Generate Plugin');
+
+toggleTagFormPromise.then((form) => {
+
+const removeSiblingTags = (form.values.removeSiblingTags ? 'true' : 'false');
+
+if (form.values.pluginName.trim() == '') {
+    form.values.pluginName = 'Toggle Tag';
+}
+
+const pluginName = form.values.pluginName;
+const pluginIdentifier = form.values.pluginName.replace(/\s/g, '');
+
+const manifestDotStringsData = Data.fromString(`"com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `" = "` + pluginName + `";`);
+
+const toggleTagLibraryDotJsData = Data.fromString(`(() => {
+    const ToggleTagLibrary = new PlugIn.Library(new Version('1.0'));
+    
+    ToggleTagLibrary.tagableItems = (objects) => {
+        return objects.filter(item => (item instanceof Task || item instanceof Project));
+    }
+    
+    ToggleTagLibrary.firstItemHasTag = (selection, selectedTag) => {
+        return new Set(selection.tags).has(selectedTag);
+    }
+    
+    ToggleTagLibrary.findTagAndSiblings = (options, tagGroup) => {
+        let searchResult = false;
+        if (options && options.tagId) {
+            if (typeof tagGroup === 'undefined') {
+                tagGroup = tags;
+            }
+            if (tagGroup.length > 0) {
+                for (let i = 0; i < tagGroup.length; i++) {
+                    testedTag = tagGroup[i];
+                    if (testedTag.id.primaryKey === options.tagId) {
+                        searchResult = {
+                            'selectedTag' : testedTag,
+                            'siblingTags' : tagGroup
+                        };
+                        break;
+                    } else {
+                        let childTest = ToggleTagLibrary.findTagAndSiblings(options, testedTag.tags);
+                        if (childTest) {
+                            searchResult = childTest;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return searchResult;
+    }
+
+    ToggleTagLibrary.toggleTag = (selection, options) => {
+        const items = ToggleTagLibrary.tagableItems(selection.allObjects),
+              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
+        
+        if (tagAndSiblings && tagAndSiblings.selectedTag) {
+            if (ToggleTagLibrary.firstItemHasTag(items[0], tagAndSiblings.selectedTag)) {
+                items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
+            } else {
+                items.forEach((item) => {
+                    if (options.removeSiblingTags) {
+                        item.removeTags(tagAndSiblings.siblingTags);
+                    }
+                    item.addTag(tagAndSiblings.selectedTag);
+                });
+            }
+        }
+    }
+
+    ToggleTagLibrary.validateTag = (selection, options, sender) => {
+        const items = ToggleTagLibrary.tagableItems(selection.allObjects),
+              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
+
+        if (tagAndSiblings && tagAndSiblings.selectedTag) {
+            if (tagAndSiblings.selectedTag && items[0]) {
+                if (typeof sender !== 'undefined') {
+                    sender.checked = ToggleTagLibrary.firstItemHasTag(items[0], tagAndSiblings.selectedTag);
+                }
+                return true;
+            }
+            
+            if (!tagAndSiblings.selectedTag && typeof sender !== 'undefined') {
+                sender.label += ' (Not Found)';
+            }
+        }
+		return false;
+	};
+
+    return ToggleTagLibrary;
+})();`);
+
+const tagList = [];
+
+const buildTagStructure = (tagGroup, prefix) => {
+    if (typeof tagGroup === 'undefined') {
+        tagGroup = tags;
+    }
+    if (typeof prefix === 'undefined') {
+        prefix = '';
+    }
+
+    if (tagGroup.length > 0) {
+        for (let i = 0; i < tagGroup.length; i++) {
+
+            let fullPath = prefix + tagGroup[i].name;
+            tagList.push({
+                'name'     : tagGroup[i].name,
+                'fullPath' : fullPath,
+                'id'       : tagGroup[i].id.primaryKey
+            });
+            buildTagStructure(tagGroup[i].tags, fullPath + ' : ');
+        }
+    }
+}
+buildTagStructure();
+
+if (tagList.length > 0) {
+    let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
+        toggleTagLibraryDotJs = FileWrapper.withContents('ToggleTagLibrary.js', toggleTagLibraryDotJsData),
+        manifestDotJsonActions = [],
+        resourcesFiles = [manifestDotStrings, toggleTagLibraryDotJs],
+        enDotLprojFiles = [];
+
+        let i = 1;
+        tagList.forEach((listedTag) => {
+let tagData = Data.fromString(`var _ = function(){
+    const options = {
+        'tagId' : '` + listedTag.id + `',
+        'removeSiblingTags' : ` + removeSiblingTags + `
+    }
+
+    const action = new PlugIn.Action(function (selection) {
+        this.ToggleTagLibrary.toggleTag(selection, options);
+    });
+    
+    action.validate = function (selection, sender) {
+        return this.ToggleTagLibrary.validateTag(selection, options, sender);
+    }
+    return action;
+}();
+_;`);
+
+let tagDataStrings = Data.fromString(`"label" = "Tag: ` + listedTag.fullPath + `";
+"shortLabel" = "Tag: ` + listedTag.name + `";
+"mediumLabel" = "Tag: ` + listedTag.fullPath + `";
+"longLabel" = "Tag: ` + listedTag.fullPath + `";`);
+
+            manifestDotJsonActions.push(`{ "identifier": "toggleTag` + i + `" },`);
+            resourcesFiles.push(FileWrapper.withContents('toggleTag' + i + '.js', tagData));
+            enDotLprojFiles.push(FileWrapper.withContents('toggleTag' + i + '.strings', tagDataStrings));
+            i++;
+        });
+
+const manifestDotJsonData = Data.fromString(`{
+    "author": "Josh Hughes",
+    "identifier": "com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `",
+    "version": "1.0",
+    "description": "Toggle selected tags",
+    "actions": [
+        ` + manifestDotJsonActions.join("") + `
+    ],
+    "libraries": [
+        {
+            "identifier": "ToggleTagLibrary"
+        }
+    ],
+    "defaultLocale": "en"
+}`);
+
+    let manifestDotJson = FileWrapper.withContents('manifest.json', manifestDotJsonData);
+    let enDotLproj = FileWrapper.withChildren('en.lproj', enDotLprojFiles);
+    resourcesFiles.push(enDotLproj);
+    let resources = FileWrapper.withChildren('Resources', resourcesFiles);
+    let plugin = FileWrapper.withChildren(form.values.pluginName.replace(/\s/g, '') + '.omnifocusjs', [manifestDotJson, resources]);
+    let save = new FileSaver();
+    save.show(plugin);
+}
+});
+});
+
+action.validate = function () {
+    return (tags.length > 0);
+}
+return action;
+})();

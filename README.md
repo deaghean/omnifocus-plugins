@@ -4,8 +4,9 @@ By [Josh Hughes](http://josh-hughes.com)
 
 This is the beginning of a collection of plugins for OmniFocus.
 
-- **Set Review Date**: A plugin that prompts you for a date, and makes that date the new review date for all projects.
-- **Toggle Tag**: Allows you to toggle a tag on tasks and projects, with an option to remove sibling tags on add if you have a tag group where you would like there to be only one of the set. You can duplicate this plugin multiple times for multiple tags.
+- **Set Review Date**: (SetReviewDate.omnifocusjs) A plugin that prompts you for a date, and makes that date the new review date for all projects.
+- **Toggle Tag**: (ToggleTag.omnijs) Allows you to toggle a tag on tasks and projects, with an option to remove sibling tags on add if you have a tag group where you would like there to be only one of the set. You can duplicate this plugin multiple times for multiple tags.
+- **Generate Toggle Tag Plugin**: (GenerateToggleTagPlugin.omnijs) This plugin generates a Toggle Tag plugin that contains your entire tag library as options.
 
 ## Installation Instructions
 
