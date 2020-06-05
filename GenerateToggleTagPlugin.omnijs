@@ -87,8 +87,13 @@
         return objects.filter(item => (item instanceof Task || item instanceof Project));
     }
     
-    ToggleTagLibrary.firstItemHasTag = (selection, selectedTag) => {
-        return new Set(selection.tags).has(selectedTag);
+    ToggleTagLibrary.allSelectedItemsHaveTag = (selection, selectedTag) => {
+        for (let i = 0; i < selection.length; i++) {
+            if (!new Set(selection[i].tags).has(selectedTag)) {
+                return false;
+            }
+        }
+        return true;
     }
     
     ToggleTagLibrary.findTagAndSiblings = (options, tagGroup) => {
@@ -120,11 +125,11 @@
     }
 
     ToggleTagLibrary.toggleTag = (selection, options) => {
-        const items = ToggleTagLibrary.tagableItems(selection.allObjects),
-            tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
+        const items          = ToggleTagLibrary.tagableItems(selection.allObjects),
+              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
         
-        if (tagAndSiblings && tagAndSiblings.selectedTag) {
-            if (ToggleTagLibrary.firstItemHasTag(items[0], tagAndSiblings.selectedTag)) {
+        if (items[0] && tagAndSiblings && tagAndSiblings.selectedTag) {
+            if (ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
                 items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
             } else {
                 items.forEach((item) => {
@@ -138,20 +143,18 @@
     }
 
     ToggleTagLibrary.validateTag = (selection, options, sender) => {
-        const items = ToggleTagLibrary.tagableItems(selection.allObjects),
-            tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
+        const items          = ToggleTagLibrary.tagableItems(selection.allObjects),
+              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
 
-        if (tagAndSiblings && tagAndSiblings.selectedTag) {
-            if (tagAndSiblings.selectedTag && items[0]) {
-                if (typeof sender !== 'undefined') {
-                    sender.checked = ToggleTagLibrary.firstItemHasTag(items[0], tagAndSiblings.selectedTag);
-                }
-                return true;
+        if (tagAndSiblings && tagAndSiblings.selectedTag && items[0]) {
+            if (typeof sender !== 'undefined') {
+                sender.checked = ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag);
             }
-            
-            if (!tagAndSiblings.selectedTag && typeof sender !== 'undefined') {
-                sender.label += ' (Not Found)';
-            }
+            return true;
+        }
+        
+        if (!tagAndSiblings.selectedTag && typeof sender !== 'undefined') {
+            sender.label += ' (Not Found)';
         }
         return false;
     };
