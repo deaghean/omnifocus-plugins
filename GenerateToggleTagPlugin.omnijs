@@ -134,7 +134,26 @@
             } else {
                 items.forEach((item) => {
                     if (options.removeSiblingTags) {
-                        item.removeTags(tagAndSiblings.siblingTags);
+                        let currentActionTags = item.tags;
+                        let newTags = [];
+                        let foundSiblingTag = false;
+                        for (let i = 0; i < currentActionTags.length; i++) {
+                            if (tagAndSiblings.siblingTags.includes(currentActionTags[i])) {
+                                // If we find an existing sibling tag, and haven't added the new tag yet, push that instead
+                                if (!foundSiblingTag) {
+                                    newTags.push(tagAndSiblings.selectedTag);
+                                    foundSiblingTag = true;
+                                }
+                            } else {
+                                newTags.push(currentActionTags[i]);
+                            }
+                        }
+                        // If there we're no siblings, add the tag to the end
+                        if (!foundSiblingTag) {
+                            newTags.push(tagAndSiblings.selectedTag);
+                        }
+                        item.clearTags();
+                        item.addTags(newTags);
                     }
                     item.addTag(tagAndSiblings.selectedTag);
                 });
