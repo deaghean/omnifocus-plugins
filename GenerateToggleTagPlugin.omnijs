@@ -36,12 +36,6 @@
         buildTagStructure();
 
         if (tagList.length > 0) {
-            const toggleTagForm = new Form();
-            const fieldPluginName = new Form.Field.String('pluginName', 'Name of Plugin', 'Toggle Tag');
-            const fieldRemoveSiblingTags = new Form.Field.Checkbox('removeSiblingTags', 'When adding a tag, remove other sibling tags', false);
-            toggleTagForm.addField(fieldPluginName);
-            toggleTagForm.addField(fieldRemoveSiblingTags);
-
             const userSelectedTagKeys = [];
             if (document && document.windows && document.windows[0] && document.windows[0].selection && document.windows[0].selection.tags && document.windows[0].selection.tags.length > 0) {
                 document.windows[0].selection.tags.forEach((sTag) => {
@@ -49,38 +43,56 @@
                 });
             }
 
-            for (let i = 0; i < tagList.length; i++) {
-                let checkboxValue = true;
-                if (userSelectedTagKeys.length > 0 && !new Set(userSelectedTagKeys).has(tagList[i].id)) {
-                    checkboxValue = false;
-                }
-                let checkbox = new Form.Field.Checkbox('tag_' + i, tagList[i].fullPath, checkboxValue);
-                toggleTagForm.addField(checkbox);
+            let fieldIncludeTagsLabel = 'Include all tags by default';
+            if (userSelectedTagKeys.length > 0) {
+                fieldIncludeTagsLabel = 'Include selected tags by default'
             }
 
-            const toggleTagFormPromise = toggleTagForm.show('Choose a Plugin Name and Options', 'Generate Plugin');
+            const toggleTagForm = new Form();
+            const fieldPluginName = new Form.Field.String('pluginName', 'Name of Plugin', 'Toggle Tag');
+            const fieldRemoveSiblingTags = new Form.Field.Checkbox('removeSiblingTags', 'Remove sibling tags when adding a tag', false);
+            const fieldIncludeTags = new Form.Field.Checkbox('includeTags', fieldIncludeTagsLabel, true);
+            toggleTagForm.addField(fieldPluginName);
+            toggleTagForm.addField(fieldRemoveSiblingTags);
+            toggleTagForm.addField(fieldIncludeTags);
+            const toggleTagFormPromise = toggleTagForm.show('Choose a Plugin Name and Options', 'Select Tags');
 
             toggleTagFormPromise.then((form) => {
-                const removeSiblingTags = form.values.removeSiblingTags ? 'true' : 'false';
 
-                if (form.values.pluginName.trim() == '') {
-                    form.values.pluginName = 'Toggle Tag';
-                }
-
-                const pluginName = form.values.pluginName;
-                const pluginIdentifier = form.values.pluginName.replace(/\s/g, '');
-
-                const selectedTagList = [];
+                const toggleTagForm2 = new Form();
                 for (let i = 0; i < tagList.length; i++) {
-                    if (form.values['tag_' + i]) {
-                        selectedTagList.push(tagList[i]);
+                    let checkboxValue = true;
+                    if (!form.values.includeTags || (userSelectedTagKeys.length > 0 && !new Set(userSelectedTagKeys).has(tagList[i].id))) {
+                        checkboxValue = false;
                     }
+                    let checkbox = new Form.Field.Checkbox('tag_' + i, tagList[i].fullPath, checkboxValue);
+                    toggleTagForm2.addField(checkbox);
                 }
 
-                if (selectedTagList.length > 0) {
-                    const manifestDotStringsData = Data.fromString(`"com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `" = "` + pluginName + `";`);
+                const toggleTagForm2Promise = toggleTagForm2.show('Choose Tags to Include', 'Generate Plugin');
 
-                    const toggleTagLibraryDotJsData = Data.fromString(`(() => {
+                toggleTagForm2Promise.then((form2) => {
+
+                    const removeSiblingTags = form.values.removeSiblingTags ? 'true' : 'false';
+
+                    if (form.values.pluginName.trim() == '') {
+                        form.values.pluginName = 'Toggle Tag';
+                    }
+
+                    const pluginName = form.values.pluginName;
+                    const pluginIdentifier = form.values.pluginName.replace(/\s/g, '');
+
+                    const selectedTagList = [];
+                    for (let i = 0; i < tagList.length; i++) {
+                        if (form2.values['tag_' + i]) {
+                            selectedTagList.push(tagList[i]);
+                        }
+                    }
+
+                    if (selectedTagList.length > 0) {
+                        const manifestDotStringsData = Data.fromString(`"com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `" = "` + pluginName + `";`);
+
+                        const toggleTagLibraryDotJsData = Data.fromString(`(() => {
     const ToggleTagLibrary = new PlugIn.Library(new Version('1.0'));
     
     ToggleTagLibrary.tagableItems = (objects) => {
@@ -181,15 +193,15 @@
     return ToggleTagLibrary;
 })();`);
 
-                    let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
-                        toggleTagLibraryDotJs = FileWrapper.withContents('ToggleTagLibrary.js', toggleTagLibraryDotJsData),
-                        manifestDotJsonActions = [],
-                        resourcesFiles = [manifestDotStrings, toggleTagLibraryDotJs],
-                        enDotLprojFiles = [];
+                        let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
+                            toggleTagLibraryDotJs = FileWrapper.withContents('ToggleTagLibrary.js', toggleTagLibraryDotJsData),
+                            manifestDotJsonActions = [],
+                            resourcesFiles = [manifestDotStrings, toggleTagLibraryDotJs],
+                            enDotLprojFiles = [];
 
-                    let i = 1;
-                    selectedTagList.forEach((listedTag) => {
-                        let tagData = Data.fromString(`var _ = function(){
+                        let i = 1;
+                        selectedTagList.forEach((listedTag) => {
+                            let tagData = Data.fromString(`var _ = function(){
     const options = {
         'tagId' : '` + listedTag.id + `', // ` + listedTag.fullPath + `
         'removeSiblingTags' : ` + removeSiblingTags + `
@@ -206,18 +218,18 @@
 }();
 _;`);
 
-                        let tagDataStrings = Data.fromString(`"label" = "Tag: ` + listedTag.fullPath + `";
+                            let tagDataStrings = Data.fromString(`"label" = "Tag: ` + listedTag.fullPath + `";
 "shortLabel" = "Tag: ` +listedTag.name + `";
 "mediumLabel" = "Tag: ` + listedTag.fullPath + `";
 "longLabel" = "Tag: ` + listedTag.fullPath + `";`);
 
-                        manifestDotJsonActions.push(`{ "identifier": "toggleTag` + i + `", "image": "icon.png" },`);
-                        resourcesFiles.push(FileWrapper.withContents('toggleTag' + i + '.js', tagData));
-                        enDotLprojFiles.push(FileWrapper.withContents('toggleTag' + i + '.strings', tagDataStrings));
-                        i++;
-                    });
+                            manifestDotJsonActions.push(`{ "identifier": "toggleTag` + i + `", "image": "icon.png" },`);
+                            resourcesFiles.push(FileWrapper.withContents('toggleTag' + i + '.js', tagData));
+                            enDotLprojFiles.push(FileWrapper.withContents('toggleTag' + i + '.strings', tagDataStrings));
+                            i++;
+                        });
 
-                    const manifestDotJsonData = Data.fromString(`{
+                        const manifestDotJsonData = Data.fromString(`{
     "author": "Josh Hughes",
     "identifier": "com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `",
     "version": "1.0",
@@ -233,21 +245,22 @@ _;`);
     "defaultLocale": "en"
 }`);
 
-                    const iconData = Data.fromBase64('iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAABGdBTUEAALGPC/xhBQAAAiNJREFUWAntl79Lw0AUx+9dmi5O7SJKpOogFVFXwaVCFwfXDvofuCgOFbVOiqKD0MU/QaGrq2AX/4AqWnHwBwbExU4upu3znk1KjJeWyqVFSKD08n3v3fvk9V7uylh4hRUIKxBW4H9XAAjfnDowLMs6FMMUIg4E9UgA8IoAq6O3W4V2OaAB9VlCZPF2zkrswKoaY/OJ8vZ5q/k4VaprUESCLFJnUDCTe2MtwYQx1cohCJtYLrFPqJ89T+7H/ObnQa4pv6TfOuJYrVorYOoiIvPjMrFrGmL68e0yL8vXWzAiQlx+Gt9d9sL1HkwQ1Rnmn8d30m441WAmMFjkwAfpQ2ORzHQnlI4lnQoPyR2UOncumrrWNz10s/buDn2ZOIpbtY+S0Ay3Lh0D3GsRbSZxvVFRVjFRnawXipKTRjYpiFd0dao6MICiN49zL7YiX5vj0/y2O1UZWHNiRQNlYOJFnfJjamX7FQNwPtI/u6IOjOEhLXRvItJQ2Ly69L6x+DNQnKuq7ErKRa+LrLOmqFI2VNuOFDEVHfmMcbd5TxNJ9yky/PEyBMiJAOosXByFOMOMA0XBqsE6A7K9OYOVRDn343ymbI39iYiCAI6Hy7ljb3xvwewO9ELRPadzuMwQuObqQFkuqlhRZghSow6MIl+gPdEvD9d1XbQ3+7Hx+jkr0SUdKJuXG1frpq5Hp8VTnAb9s37PD3yp3T8kGWiohRUIK9DrCnwBdDG4PkCx5SoAAAAASUVORK5CYII=');
+                        const iconData = Data.fromBase64('iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAABGdBTUEAALGPC/xhBQAAAiNJREFUWAntl79Lw0AUx+9dmi5O7SJKpOogFVFXwaVCFwfXDvofuCgOFbVOiqKD0MU/QaGrq2AX/4AqWnHwBwbExU4upu3znk1KjJeWyqVFSKD08n3v3fvk9V7uylh4hRUIKxBW4H9XAAjfnDowLMs6FMMUIg4E9UgA8IoAq6O3W4V2OaAB9VlCZPF2zkrswKoaY/OJ8vZ5q/k4VaprUESCLFJnUDCTe2MtwYQx1cohCJtYLrFPqJ89T+7H/ObnQa4pv6TfOuJYrVorYOoiIvPjMrFrGmL68e0yL8vXWzAiQlx+Gt9d9sL1HkwQ1Rnmn8d30m441WAmMFjkwAfpQ2ORzHQnlI4lnQoPyR2UOncumrrWNz10s/buDn2ZOIpbtY+S0Ay3Lh0D3GsRbSZxvVFRVjFRnawXipKTRjYpiFd0dao6MICiN49zL7YiX5vj0/y2O1UZWHNiRQNlYOJFnfJjamX7FQNwPtI/u6IOjOEhLXRvItJQ2Ly69L6x+DNQnKuq7ErKRa+LrLOmqFI2VNuOFDEVHfmMcbd5TxNJ9yky/PEyBMiJAOosXByFOMOMA0XBqsE6A7K9OYOVRDn343ymbI39iYiCAI6Hy7ljb3xvwewO9ELRPadzuMwQuObqQFkuqlhRZghSow6MIl+gPdEvD9d1XbQ3+7Hx+jkr0SUdKJuXG1frpq5Hp8VTnAb9s37PD3yp3T8kGWiohRUIK9DrCnwBdDG4PkCx5SoAAAAASUVORK5CYII=');
 
-                    const icon = FileWrapper.withContents('icon.png', iconData);
-                    resourcesFiles.push(icon);
-                    const manifestDotJson = FileWrapper.withContents('manifest.json', manifestDotJsonData);
-                    const enDotLproj = FileWrapper.withChildren('en.lproj', enDotLprojFiles);
-                    resourcesFiles.push(enDotLproj);
-                    const resources = FileWrapper.withChildren('Resources', resourcesFiles);
-                    const plugin = FileWrapper.withChildren(form.values.pluginName.replace(/\s/g, '') + '.omnifocusjs', [manifestDotJson, resources]);
-                    const save = new FileSaver();
-                    save.show(plugin);
-                } else {
-                    const noTagAlert = new Alert('Error', 'Sorry, you must select at least one tag to generate a plugin.');
-                    noTagAlert.show();
-                }
+                        const icon = FileWrapper.withContents('icon.png', iconData);
+                        resourcesFiles.push(icon);
+                        const manifestDotJson = FileWrapper.withContents('manifest.json', manifestDotJsonData);
+                        const enDotLproj = FileWrapper.withChildren('en.lproj', enDotLprojFiles);
+                        resourcesFiles.push(enDotLproj);
+                        const resources = FileWrapper.withChildren('Resources', resourcesFiles);
+                        const plugin = FileWrapper.withChildren(form.values.pluginName.replace(/\s/g, '') + '.omnifocusjs', [manifestDotJson, resources]);
+                        const save = new FileSaver();
+                        save.show(plugin);
+                    } else {
+                        const noTagAlert = new Alert('Error', 'Sorry, you must select at least one tag to generate a plugin.');
+                        noTagAlert.show();
+                    }
+                });
             });
         }
     });
