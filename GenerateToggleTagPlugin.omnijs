@@ -120,7 +120,7 @@
                     if (testedTag.id.primaryKey === options.tagId) {
                         searchResult = {
                             'selectedTag' : testedTag,
-                            'siblingTags' : tagGroup
+                            'siblingTags' : tagGroup.filter(tag => tag !== testedTag)
                         };
                         break;
                     } else {
@@ -144,7 +144,7 @@
             if (ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
                 items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
             } else {
-                items.forEach((item) => {
+                items.forEach((item) => {                    
                     if (options.removeSiblingTags) {
                         let currentActionTags = item.tags;
                         let newTags = [];
@@ -164,10 +164,16 @@
                         if (!foundSiblingTag) {
                             newTags.push(tagAndSiblings.selectedTag);
                         }
-                        item.clearTags();
-                        item.addTags(newTags);
+
+                        if (!item.tags.includes(tagAndSiblings.selectedTag) || foundSiblingTag) {
+                            item.clearTags();
+                            item.addTags(newTags);
+                        }
+                    } else {
+                        if (!item.tags.includes(tagAndSiblings.selectedTag)) {
+                            item.addTag(tagAndSiblings.selectedTag);
+                        }
                     }
-                    item.addTag(tagAndSiblings.selectedTag);
                 });
             }
         }
