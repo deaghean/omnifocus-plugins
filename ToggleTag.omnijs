@@ -2,7 +2,7 @@
     "author": "Josh Hughes",
     "targets": ["omnifocus"],
     "type": "action",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Toggle a given tag",
     "label" : "Toggle Tag"
 }*/
@@ -13,74 +13,118 @@
     // If, when this plugin adds the given tag, you would like it to remove all
     // sibling tags as well, set removeSiblingTags to true (no quotes)
 
-    const tagName           = 'NAME OF TAG',
-          removeSiblingTags = false;
-          
-    let selectedTag = null,
-        siblingTags = [];
-    
+    const options = {
+        'tagName'           : 'NAME OF TAG',
+        'removeSiblingTags' : false
+    }
+        
     const tagableItems = (objects) => {
         return objects.filter(item => (item instanceof Task || item instanceof Project));
     }
     
-    const firstItemHasTag = (selection, selectedTag) => {
-        return new Set(selection.tags).has(selectedTag);
+    const allSelectedItemsHaveTag = (selection, selectedTag) => {
+        for (let i = 0; i < selection.length; i++) {
+            if (!new Set(selection[i].tags).has(selectedTag)) {
+                return false;
+            }
+        }
+        return true;
     }
     
-    const findTagAndSiblings = (tagGroup) => {
-        if (typeof tagGroup === 'undefined') {
-            tagGroup = tags;
-        }
-        tagGroup.forEach((testedTag) => {
-            if (testedTag.name === tagName) {
-                selectedTag = testedTag;
-                siblingTags = tagGroup;
-                return true;
-            } else {
-                let childTest = findTagAndSiblings(testedTag.tags);
-                if (childTest) {
-                    return true;
+    const findTagAndSiblings = (options, tagGroup) => {
+        let searchResult = false;
+        if (options && options.tagId) {
+            if (typeof tagGroup === 'undefined') {
+                tagGroup = tags;
+            }
+            if (tagGroup.length > 0) {
+                for (let i = 0; i < tagGroup.length; i++) {
+                    testedTag = tagGroup[i];
+                    if (testedTag.name === options.tagName) {
+                        searchResult = {
+                            'selectedTag' : testedTag,
+                            'siblingTags' : tagGroup.filter(tag => tag !== testedTag)
+                        };
+                        break;
+                    } else {
+                        let childTest = findTagAndSiblings(options, testedTag.tags);
+                        if (childTest) {
+                            searchResult = childTest;
+                            break;
+                        }
+                    }
                 }
             }
-        });
-        return false;
+        }
+        return searchResult;
     }
-    
-    const action = new PlugIn.Action((selection) => {
-        const items = tagableItems(selection.allObjects);
-        findTagAndSiblings();
 
-        if (firstItemHasTag(items[0], selectedTag)) {
-            items.forEach(item => item.removeTag(selectedTag));
-        } else {
-            items.forEach((item) => {
-                if (removeSiblingTags) {
-                    item.removeTags(siblingTags);
-                }
-                item.addTag(selectedTag);
-            });
-        }
-    });
-
-    action.validate = (selection, sender) => {
-        const items = tagableItems(selection.allObjects);
-        findTagAndSiblings();
+    const toggleTag = (selection, options) => {
+        const items          = tagableItems(selection.allObjects),
+              tagAndSiblings = findTagAndSiblings(options);
         
-        if (typeof sender !== 'undefined') {
-            sender.label = 'Tag: ' + tagName;
+        if (items[0] && tagAndSiblings && tagAndSiblings.selectedTag) {
+            if (allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
+                items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
+            } else {
+                items.forEach((item) => {                    
+                    if (options.removeSiblingTags) {
+                        let currentActionTags = item.tags;
+                        let newTags = [];
+                        let foundSiblingTag = false;
+                        for (let i = 0; i < currentActionTags.length; i++) {
+                            if (tagAndSiblings.siblingTags.includes(currentActionTags[i])) {
+                                // If we find an existing sibling tag, and haven't added the new tag yet, push that instead
+                                if (!foundSiblingTag) {
+                                    newTags.push(tagAndSiblings.selectedTag);
+                                    foundSiblingTag = true;
+                                }
+                            } else {
+                                newTags.push(currentActionTags[i]);
+                            }
+                        }
+                        // If there we're no siblings, add the tag to the end
+                        if (!foundSiblingTag) {
+                            newTags.push(tagAndSiblings.selectedTag);
+                        }
+
+                        if (!item.tags.includes(tagAndSiblings.selectedTag) || foundSiblingTag) {
+                            item.clearTags();
+                            item.addTags(newTags);
+                        }
+                    } else {
+                        if (!item.tags.includes(tagAndSiblings.selectedTag)) {
+                            item.addTag(tagAndSiblings.selectedTag);
+                        }
+                    }
+                });
+            }
         }
-        if (selectedTag && items[0]) {
+    }
+
+    const validateTag = (selection, options, sender) => {
+        const items          = tagableItems(selection.allObjects),
+              tagAndSiblings = findTagAndSiblings(options);
+
+        if (tagAndSiblings && tagAndSiblings.selectedTag && items[0]) {
             if (typeof sender !== 'undefined') {
-                sender.checked = firstItemHasTag(items[0], selectedTag);
+                sender.checked = allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag);
             }
             return true;
         }
-		
-		if (!selectedTag && typeof sender !== 'undefined') {
+        
+        if (!tagAndSiblings.selectedTag && typeof sender !== 'undefined') {
             sender.label += ' (Not Found)';
         }
-		return false;
-	};
-        
+        return false;
+    };
+    
+    const action = new PlugIn.Action(function (selection) {
+        toggleTag(selection, options);
+    });
+    
+    action.validate = function (selection, sender) {
+        return validateTag(selection, options, sender);
+    }
     return action;
 })();
