@@ -27,7 +27,8 @@ var _ = function() {
         const newReviewDate = new Date();
         newReviewDate.setHours(0,0,0,0); // Reset time to midnight
         const datePickerForm = new Form();
-        const datePickerField = new Form.Field.Date('reviewDate', 'New Review Date', newReviewDate);
+        const dateFormatter = Formatter.Date.withStyle(Formatter.Date.Style.Short, null);
+        const datePickerField = new Form.Field.Date('reviewDate', 'New Review Date', newReviewDate, dateFormatter);
         datePickerForm.addField(datePickerField);
         if (folderIds.length > 0) {
             const selectedFolderField = new Form.Field.Option('selectedFolder', 'Set Date for', folderIds, folderNames);
