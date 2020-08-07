@@ -33,7 +33,7 @@
     
     const findTagAndSiblings = (options, tagGroup) => {
         let searchResult = false;
-        if (options && options.tagId) {
+        if (options && options.tagName) {
             if (typeof tagGroup === 'undefined') {
                 tagGroup = tags;
             }
@@ -114,7 +114,9 @@
         }
         
         if (!tagAndSiblings.selectedTag && typeof sender !== 'undefined') {
-            sender.label += ' (Not Found)';
+            if (sender.label && sender.label.slice(-12) !== ' (Not Found)') {
+                sender.label += ' (Not Found)';
+            }
         }
         return false;
     };
