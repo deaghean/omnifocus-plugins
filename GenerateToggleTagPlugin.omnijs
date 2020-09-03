@@ -59,20 +59,23 @@
 
             toggleTagFormPromise.then((form) => {
 
-                const toggleTagForm2 = new Form();
+                const toggleTagForm2 = new Form(),
+                      tagIndexes = [],
+                      tagLabels = [],
+                      tagSelected = [];
                 for (let i = 0; i < tagList.length; i++) {
-                    let checkboxValue = true;
-                    if (!form.values.includeTags || (userSelectedTagKeys.length > 0 && !new Set(userSelectedTagKeys).has(tagList[i].id))) {
-                        checkboxValue = false;
+                    tagIndexes.push(i);
+                    tagLabels.push(tagList[i].fullPath);
+                    if (form.values.includeTags && (userSelectedTagKeys.length == 0 || new Set(userSelectedTagKeys).has(tagList[i].id))) {
+                        tagSelected.push(i);
                     }
-                    let checkbox = new Form.Field.Checkbox('tag_' + i, tagList[i].fullPath, checkboxValue);
-                    toggleTagForm2.addField(checkbox);
                 }
+                let tagListField = new Form.Field.MultipleOptions('tagList', 'Tags to Include', tagIndexes, tagLabels, tagSelected);
+                    toggleTagForm2.addField(tagListField);
 
-                const toggleTagForm2Promise = toggleTagForm2.show('Choose Tags to Include', 'Generate Plugin');
+                const toggleTagForm2Promise = toggleTagForm2.show('Finalize Selection', 'Generate Plugin');
 
                 toggleTagForm2Promise.then((form2) => {
-
                     const removeSiblingTags = form.values.removeSiblingTags ? 'true' : 'false';
 
                     if (form.values.pluginName.trim() == '') {
@@ -83,10 +86,8 @@
                     const pluginIdentifier = form.values.pluginName.replace(/\s/g, '');
 
                     const selectedTagList = [];
-                    for (let i = 0; i < tagList.length; i++) {
-                        if (form2.values['tag_' + i]) {
-                            selectedTagList.push(tagList[i]);
-                        }
+                    for (let i = 0; i < form2.values.tagList.length; i++) {
+                        selectedTagList.push(tagList[form2.values.tagList[i]]);
                     }
 
                     if (selectedTagList.length > 0) {
@@ -191,7 +192,9 @@
         }
         
         if (!tagAndSiblings.selectedTag && typeof sender !== 'undefined') {
-            sender.label += ' (Not Found)';
+            if (sender.label && sender.label.slice(-12) !== ' (Not Found)') {
+                sender.label += ' (Not Found)';
+            }
         }
         return false;
     };
