@@ -26,7 +26,7 @@ var _ = function() {
 
         const datePickerForm = new Form();
         const dateFormatter = Formatter.Date.withStyle(Formatter.Date.Style.Short, null);
-        const datePickerField = new Form.Field.Date('reviewDate', 'New Review Date', null, dateFormatter);
+        const datePickerField = new Form.Field.Date('reviewDate', 'New Review Date', new Date(), dateFormatter);
         datePickerForm.addField(datePickerField);
         if (folderIds.length > 0) {
             const selectedFolderField = new Form.Field.Option('selectedFolder', 'Set Date for', folderIds, folderNames);
