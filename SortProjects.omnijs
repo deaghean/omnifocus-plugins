@@ -1,0 +1,158 @@
+/*{
+    "type": "action",
+    "targets": ["omnifocus"],
+    "author": "Josh Hughes",
+    "identifier": "com.josh-hughes.SortProjects",
+    "version": "1.0",
+    "description": "Sort projects by availability, dates, and tag order",
+    "label": "Sort Projects",
+    "paletteLabel": "Sort Projects"
+}*/
+
+var _ = function() {
+
+    const today       = new Date(),
+          sortNonSals = true;
+
+    var action = new PlugIn.Action(function() {
+
+        function sortActions(project) {
+            if (project instanceof Project) {                
+                var tasks = project.task.children
+                if (tasks.length > 0) {
+                    tasks.sort((firstAction, secondAction) => {
+                        if (project.containsSingletonActions) {
+                            // 1. By Status
+                            let sortValue = sortByTaskStatus(firstAction, secondAction);
+                            if (sortValue == 0) {
+                                // 2. If Deferred, By Defer Date
+                                if (firstAction.taskStatus == Task.Status.Blocked && firstAction.effectiveDeferDate && (today < firstAction.effectiveDeferDate)) {
+                                    let sortValue = sortByEffectiveDeferDate(firstAction, secondAction);
+                                    if (sortValue == 0) {
+                                        // 3. By Tag Order of First Tag
+                                        let sortValue = sortByTagOrder(firstAction, secondAction);
+                                        if (sortValue == 0) {
+                                            // 4. By Due Date
+                                            return sortByEffectiveDueDate(firstAction, secondAction);
+                                        }
+                                        return sortValue;
+                                    }
+                                    return sortValue;
+                                }
+                        
+                                // 2. If Completed, By Completion Date
+                                if ((firstAction.taskStatus == Task.Status.Completed) || (firstAction.taskStatus == Task.Status.Dropped)) {
+                                    return sortByEffectiveCompletionOrDropDate(firstAction, secondAction);
+                                }
+                        
+                                // 2. If Not Blocked, Completed, or Dropped, By Tag Order of First Tag
+                                let sortValue = sortByTagOrder(firstAction, secondAction);
+                                if (sortValue == 0) {
+                                    // 3. By Due Date
+                                    return sortByEffectiveDueDate(firstAction, secondAction);
+                                }
+                                return sortValue;
+                            }
+                            return sortValue;
+                        } else {
+                            if (sortNonSals === true) {
+                                // Move Completed/Dropped down
+                                if ((firstAction.taskStatus == Task.Status.Completed || firstAction.taskStatus == Task.Status.Dropped) && (secondAction.taskStatus != Task.Status.Completed && secondAction.taskStatus != Task.Status.Dropped)) {
+                                    return 1;
+                                } else if ((secondAction.taskStatus == Task.Status.Completed || secondAction.taskStatus == Task.Status.Dropped) && (firstAction.taskStatus != Task.Status.Completed && firstAction.taskStatus != Task.Status.Dropped)) {
+                                    return -1;
+                                } else {
+                                    return sortByEffectiveCompletionOrDropDate(firstAction, secondAction);
+                                }
+                            }
+                        }
+                    });
+                    moveTasks(tasks, project);
+                }
+            }
+        }
+        
+        function sortByTagOrder(firstAction, secondAction) {
+            if (flattenedTags.indexOf(firstAction.tags[0]) < flattenedTags.indexOf(secondAction.tags[0])) { return -1; }
+            if (flattenedTags.indexOf(firstAction.tags[0]) > flattenedTags.indexOf(secondAction.tags[0])) { return 1; }
+            return 0;
+        }
+        
+        function sortByEffectiveDeferDate(firstAction, secondAction) {
+            if (firstAction.effectiveDeferDate < secondAction.effectiveDeferDate) { return -1; }
+            if (firstAction.effectiveDeferDate > secondAction.effectiveDeferDate) { return 1; }
+            return 0;
+        }
+        
+        function sortByEffectiveDueDate(firstAction, secondAction) {
+            if (firstAction.effectiveDueDate && !secondAction.effectiveDueDate) { return -1; }
+            if (!firstAction.effectiveDueDate && secondAction.effectiveDueDate) { return 1; }
+            if (firstAction.effectiveDueDate < secondAction.effectiveDueDate) { return -1; }
+            if (firstAction.effectiveDueDate > secondAction.effectiveDueDate) { return 1; }
+            return 0;
+        }
+        
+        function sortByEffectiveCompletionOrDropDate(firstAction, secondAction) {
+            let firstDate = firstAction.effectiveDropDate,
+                secondDate = secondAction.effectiveDropDate;
+                
+            if (firstDate === null) {
+                firstDate = firstAction.effectiveCompletedDate;
+            }
+            
+            if (secondDate === null) {
+                secondDate = secondAction.effectiveCompletedDate;
+            }
+        
+            if (firstDate < secondDate) { return -1; }
+            if (firstDate > secondDate) { return 1; }
+            return 0;
+        }
+        
+        function sortByTaskStatus(firstAction, secondAction) {
+            firstActionStatus = getTaskStatusRank(firstAction);
+            secondActionStatus = getTaskStatusRank(secondAction);
+            if (firstActionStatus < secondActionStatus) { return -1; }
+            if (firstActionStatus > secondActionStatus) { return 1; }
+            return 0;
+        }
+        
+        function getTaskStatusRank(action) {
+            switch (action.taskStatus) {
+                case Task.Status.Available:
+                case Task.Status.DueSoon:
+                case Task.Status.Overdue:
+                case Task.Status.Next:
+                    return 1;
+                    break;
+                
+                case Task.Status.Blocked:
+                    // Rank blocked actions with a future defer date higher
+                    if (action.effectiveDeferDate && (today < action.effectiveDeferDate)) {
+                        return 2;
+                    } else {
+                        return 3;
+                    }
+                    break;
+                    
+                case Task.Status.Completed:
+                case Task.Status.Dropped:
+                    return 4;
+                    break;
+                    
+                default:
+                    return 5;
+                    break;
+            }
+        }
+        
+        library.apply(sortActions);
+    });
+
+    action.validate = function(){
+        return (projects.length > 0 || folders.length > 0);
+    };
+
+    return action;
+}();
+_;
