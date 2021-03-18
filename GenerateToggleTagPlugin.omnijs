@@ -93,14 +93,32 @@
                     if (selectedTagList.length > 0) {
                         const manifestDotStringsData = Data.fromString(`"com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `" = "` + pluginName + `";`);
 
-                        const toggleTagLibraryDotJsData = Data.fromString(`(() => {
-    const ToggleTagLibrary = new PlugIn.Library(new Version('1.0'));
+                        let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
+                            manifestDotJsonActions = [],
+                            resourcesFiles = [manifestDotStrings],
+                            enDotLprojFiles = [];
+
+                        let i = 1;
+                        selectedTagList.forEach((listedTag) => {
+                            let tagData = Data.fromString(`(() => {
+    const options = {
+        'tagId' : '` + listedTag.id + `', // ` + listedTag.fullPath + `
+        'removeSiblingTags' : ` + removeSiblingTags + `
+    }
+
+    const action = new PlugIn.Action(function (selection) {
+        toggleTag(selection, options);
+    });
     
-    ToggleTagLibrary.tagableItems = (objects) => {
+    action.validate = function (selection, sender) {
+        return validateTag(selection, options, sender);
+    }
+    
+    const tagableItems = (objects) => {
         return objects.filter(item => (item instanceof Task || item instanceof Project));
     }
     
-    ToggleTagLibrary.allSelectedItemsHaveTag = (selection, selectedTag) => {
+    const allSelectedItemsHaveTag = (selection, selectedTag) => {
         for (let i = 0; i < selection.length; i++) {
             if (!new Set(selection[i].tags).has(selectedTag)) {
                 return false;
@@ -109,7 +127,7 @@
         return true;
     }
     
-    ToggleTagLibrary.findTagAndSiblings = (options, tagGroup) => {
+    const findTagAndSiblings = (options, tagGroup) => {
         let searchResult = false;
         if (options && options.tagId) {
             if (typeof tagGroup === 'undefined') {
@@ -125,7 +143,7 @@
                         };
                         break;
                     } else {
-                        let childTest = ToggleTagLibrary.findTagAndSiblings(options, testedTag.tags);
+                        let childTest = findTagAndSiblings(options, testedTag.tags);
                         if (childTest) {
                             searchResult = childTest;
                             break;
@@ -137,12 +155,12 @@
         return searchResult;
     }
 
-    ToggleTagLibrary.toggleTag = (selection, options) => {
-        const items          = ToggleTagLibrary.tagableItems(selection.allObjects),
-              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
+    const toggleTag = (selection, options) => {
+        const items          = tagableItems(selection.allObjects),
+              tagAndSiblings = findTagAndSiblings(options);
         
         if (items[0] && tagAndSiblings && tagAndSiblings.selectedTag) {
-            if (ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
+            if (allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
                 items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
             } else {
                 items.forEach((item) => {                    
@@ -180,13 +198,13 @@
         }
     }
 
-    ToggleTagLibrary.validateTag = (selection, options, sender) => {
-        const items          = ToggleTagLibrary.tagableItems(selection.allObjects),
-              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
+    const validateTag = (selection, options, sender) => {
+        const items          = tagableItems(selection.allObjects),
+              tagAndSiblings = findTagAndSiblings(options);
 
         if (tagAndSiblings && tagAndSiblings.selectedTag && items[0]) {
             if (typeof sender !== 'undefined') {
-                sender.checked = ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag);
+                sender.checked = allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag);
             }
             return true;
         }
@@ -198,34 +216,9 @@
         }
         return false;
     };
-
-    return ToggleTagLibrary;
-})();`);
-
-                        let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
-                            toggleTagLibraryDotJs = FileWrapper.withContents('ToggleTagLibrary.js', toggleTagLibraryDotJsData),
-                            manifestDotJsonActions = [],
-                            resourcesFiles = [manifestDotStrings, toggleTagLibraryDotJs],
-                            enDotLprojFiles = [];
-
-                        let i = 1;
-                        selectedTagList.forEach((listedTag) => {
-                            let tagData = Data.fromString(`var _ = function(){
-    const options = {
-        'tagId' : '` + listedTag.id + `', // ` + listedTag.fullPath + `
-        'removeSiblingTags' : ` + removeSiblingTags + `
-    }
-
-    const action = new PlugIn.Action(function (selection) {
-        this.ToggleTagLibrary.toggleTag(selection, options);
-    });
     
-    action.validate = function (selection, sender) {
-        return this.ToggleTagLibrary.validateTag(selection, options, sender);
-    }
     return action;
-}();
-_;`);
+})();`);
 
                             let tagDataStrings = Data.fromString(`"label" = "Tag: ` + listedTag.fullPath + `";
 "shortLabel" = "Tag: ` +listedTag.name + `";
@@ -245,11 +238,6 @@ _;`);
     "description": "Toggle selected tags",
     "actions": [
         ` + manifestDotJsonActions.join('') + `
-    ],
-    "libraries": [
-        {
-            "identifier": "ToggleTagLibrary"
-        }
     ],
     "defaultLocale": "en"
 }`);
