@@ -13,34 +13,28 @@
     const action = new PlugIn.Action(function () {
         const tagList = [];
 
-        const buildTagStructure = (tagGroup, prefix) => {
-            if (typeof tagGroup === 'undefined') {
-                tagGroup = tags;
-            }
-            if (typeof prefix === 'undefined') {
-                prefix = '';
-            }
-
+        const buildTagStructure = (tagGroup = tags, prefix = '') => {
             if (tagGroup.length > 0) {
-                for (let i = 0; i < tagGroup.length; i++) {
-                    let fullPath = prefix + tagGroup[i].name;
+                for (const tag of tagGroup) {
+                    let fullPath = prefix + tag.name;
+
                     tagList.push({
-                        name: tagGroup[i].name,
+                        name: tag.name,
                         fullPath: fullPath,
-                        id: tagGroup[i].id.primaryKey,
+                        id: tag.id.primaryKey,
                     });
-                    buildTagStructure(tagGroup[i].tags, fullPath + ' : ');
+
+                    buildTagStructure(tag.tags, fullPath + ' : ');
                 }
             }
         };
+
         buildTagStructure();
 
         if (tagList.length > 0) {
-            const userSelectedTagKeys = [];
+            let userSelectedTagKeys = [];
             if (document && document.windows && document.windows[0] && document.windows[0].selection && document.windows[0].selection.tags && document.windows[0].selection.tags.length > 0) {
-                document.windows[0].selection.tags.forEach((sTag) => {
-                    userSelectedTagKeys.push(sTag.id.primaryKey);
-                });
+                userSelectedTagKeys = document.windows[0].selection.tags.map(tag => tag.id.primaryKey);
             }
 
             let fieldIncludeTagsLabel = 'Include all tags by default';
@@ -63,6 +57,7 @@
                       tagIndexes = [],
                       tagLabels = [],
                       tagSelected = [];
+
                 for (let i = 0; i < tagList.length; i++) {
                     tagIndexes.push(i);
                     tagLabels.push(tagList[i].fullPath);
@@ -70,8 +65,9 @@
                         tagSelected.push(i);
                     }
                 }
-                let tagListField = new Form.Field.MultipleOptions('tagList', 'Tags to Include', tagIndexes, tagLabels, tagSelected);
-                    toggleTagForm2.addField(tagListField);
+
+                const tagListField = new Form.Field.MultipleOptions('tagList', 'Tags to Include', tagIndexes, tagLabels, tagSelected);
+                toggleTagForm2.addField(tagListField);
 
                 const toggleTagForm2Promise = toggleTagForm2.show('Finalize Selection', 'Generate Plugin');
 
@@ -93,92 +89,67 @@
                     if (selectedTagList.length > 0) {
                         const manifestDotStringsData = Data.fromString(`"com.josh-hughes.omnifocusplugins.` + pluginIdentifier + `" = "` + pluginName + `";`);
 
-                        let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
-                            manifestDotJsonActions = [],
-                            resourcesFiles = [manifestDotStrings],
-                            enDotLprojFiles = [];
-
-                        let i = 1;
-                        selectedTagList.forEach((listedTag) => {
-                            let tagData = Data.fromString(`(() => {
-    const options = {
-        'tagId' : '` + listedTag.id + `', // ` + listedTag.fullPath + `
-        'removeSiblingTags' : ` + removeSiblingTags + `
-    }
-
-    const action = new PlugIn.Action(function (selection) {
-        toggleTag(selection, options);
-    });
+                        const toggleTagLibraryDotJsData = Data.fromString(`(() => {
+    const ToggleTagLibrary = new PlugIn.Library(new Version('1.0'));
     
-    action.validate = function (selection, sender) {
-        return validateTag(selection, options, sender);
-    }
-    
-    const tagableItems = (objects) => {
+    ToggleTagLibrary.tagableItems = (objects) => {
         return objects.filter(item => (item instanceof Task || item instanceof Project));
     }
     
-    const allSelectedItemsHaveTag = (selection, selectedTag) => {
-        for (let i = 0; i < selection.length; i++) {
-            if (!new Set(selection[i].tags).has(selectedTag)) {
-                return false;
-            }
-        }
-        return true;
+    ToggleTagLibrary.allSelectedItemsHaveTag = (selection, selectedTag) => {
+        return selection.every(item => (item.tags && item.tags.includes(selectedTag)));
     }
     
-    const findTagAndSiblings = (options, tagGroup) => {
-        let searchResult = false;
+    ToggleTagLibrary.findTagAndSiblings = (options, tagGroup) => {
         if (options && options.tagId) {
             if (typeof tagGroup === 'undefined') {
                 tagGroup = tags;
             }
             if (tagGroup.length > 0) {
-                for (let i = 0; i < tagGroup.length; i++) {
-                    testedTag = tagGroup[i];
-                    if (testedTag.id.primaryKey === options.tagId) {
-                        searchResult = {
+                for (testedTag of tagGroup) {
+                    if (testedTag.id && testedTag.id.primaryKey && testedTag.id.primaryKey === options.tagId) {
+                        return {
                             'selectedTag' : testedTag,
                             'siblingTags' : tagGroup.filter(tag => tag !== testedTag)
                         };
-                        break;
                     } else {
-                        let childTest = findTagAndSiblings(options, testedTag.tags);
+                        let childTest = ToggleTagLibrary.findTagAndSiblings(options, testedTag.tags);
                         if (childTest) {
-                            searchResult = childTest;
-                            break;
+                            return childTest;
                         }
                     }
-                }
+                };
             }
         }
-        return searchResult;
+        return false;
     }
 
-    const toggleTag = (selection, options) => {
-        const items          = tagableItems(selection.allObjects),
-              tagAndSiblings = findTagAndSiblings(options);
+    ToggleTagLibrary.toggleTag = (selection, options) => {
+        const items          = ToggleTagLibrary.tagableItems(selection.allObjects),
+              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
         
         if (items[0] && tagAndSiblings && tagAndSiblings.selectedTag) {
-            if (allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
+            if (ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
                 items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
             } else {
-                items.forEach((item) => {                    
+                items.forEach(item => {                    
                     if (options.removeSiblingTags) {
-                        let currentActionTags = item.tags;
                         let newTags = [];
                         let foundSiblingTag = false;
-                        for (let i = 0; i < currentActionTags.length; i++) {
-                            if (tagAndSiblings.siblingTags.includes(currentActionTags[i])) {
-                                // If we find an existing sibling tag, and haven't added the new tag yet, push that instead
-                                if (!foundSiblingTag) {
-                                    newTags.push(tagAndSiblings.selectedTag);
-                                    foundSiblingTag = true;
+                        if (item.tags) {
+                            newTags = item.tags.map(tag => {
+                                if (tagAndSiblings.siblingTags.includes(tag)) {
+                                    // If we find an existing sibling tag, and haven't added the new tag yet, push that instead
+                                    if (!foundSiblingTag) {
+                                        foundSiblingTag = true;
+                                        return tagAndSiblings.selectedTag;
+                                    }
+                                } else {
+                                    return tag;
                                 }
-                            } else {
-                                newTags.push(currentActionTags[i]);
-                            }
+                            });
                         }
+
                         // If there we're no siblings, add the tag to the end
                         if (!foundSiblingTag) {
                             newTags.push(tagAndSiblings.selectedTag);
@@ -198,13 +169,13 @@
         }
     }
 
-    const validateTag = (selection, options, sender) => {
-        const items          = tagableItems(selection.allObjects),
-              tagAndSiblings = findTagAndSiblings(options);
+    ToggleTagLibrary.validateTag = (selection, options, sender) => {
+        const items          = ToggleTagLibrary.tagableItems(selection.allObjects),
+              tagAndSiblings = ToggleTagLibrary.findTagAndSiblings(options);
 
         if (tagAndSiblings && tagAndSiblings.selectedTag && items[0]) {
             if (typeof sender !== 'undefined') {
-                sender.checked = allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag);
+                sender.checked = ToggleTagLibrary.allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag);
             }
             return true;
         }
@@ -216,18 +187,45 @@
         }
         return false;
     };
+
+    return ToggleTagLibrary;
+})();`);
+
+                        let manifestDotStrings = FileWrapper.withContents('manifest.strings', manifestDotStringsData),
+                            toggleTagLibraryDotJs = FileWrapper.withContents('ToggleTagLibrary.js', toggleTagLibraryDotJsData),
+                            manifestDotJsonActions = [],
+                            resourcesFiles = [manifestDotStrings, toggleTagLibraryDotJs],
+                            enDotLprojFiles = [];
+
+                        let i = 1;
+                        selectedTagList.forEach((listedTag) => {
+                            let tagData = Data.fromString(`(() => {
+    const options = {
+        'tagId' : '` + listedTag.id + `', // ` + listedTag.fullPath + `
+        'removeSiblingTags' : ` + removeSiblingTags + `
+    }
+
+    const action = new PlugIn.Action(function (selection) {
+        this.ToggleTagLibrary.toggleTag(selection, options);
+    });
     
+    action.validate = function (selection, sender) {
+        return this.ToggleTagLibrary.validateTag(selection, options, sender);
+    }
     return action;
 })();`);
 
-                            let tagDataStrings = Data.fromString(`"label" = "Tag: ` + listedTag.fullPath + `";
-"shortLabel" = "Tag: ` +listedTag.name + `";
+                            let tagDataStrings = Data.fromString(`"label"       = "Tag: ` + listedTag.fullPath + `";
+"shortLabel"  = "Tag: ` +listedTag.name + `";
 "mediumLabel" = "Tag: ` + listedTag.fullPath + `";
-"longLabel" = "Tag: ` + listedTag.fullPath + `";`);
+"longLabel"   = "Tag: ` + listedTag.fullPath + `";`);
 
-                            manifestDotJsonActions.push(`{ "identifier": "toggleTag` + i + `", "image": "icon.png" },`);
-                            resourcesFiles.push(FileWrapper.withContents('toggleTag' + i + '.js', tagData));
-                            enDotLprojFiles.push(FileWrapper.withContents('toggleTag' + i + '.strings', tagDataStrings));
+                            manifestDotJsonActions.push(`        {
+            "identifier": "toggleTag_` + listedTag.id + `",
+            "image": "tag"
+        },`);
+                            resourcesFiles.push(FileWrapper.withContents('toggleTag_' + listedTag.id + '.js', tagData));
+                            enDotLprojFiles.push(FileWrapper.withContents('toggleTag_' + listedTag.id + '.strings', tagDataStrings));
                             i++;
                         });
 
@@ -237,15 +235,15 @@
     "version": "1.0",
     "description": "Toggle selected tags",
     "actions": [
-        ` + manifestDotJsonActions.join('') + `
+` + manifestDotJsonActions.join("\n") + `
+    ],
+    "libraries": [
+        {
+            "identifier": "ToggleTagLibrary"
+        }
     ],
     "defaultLocale": "en"
 }`);
-
-                        const iconData = Data.fromBase64('iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAABGdBTUEAALGPC/xhBQAAAiNJREFUWAntl79Lw0AUx+9dmi5O7SJKpOogFVFXwaVCFwfXDvofuCgOFbVOiqKD0MU/QaGrq2AX/4AqWnHwBwbExU4upu3znk1KjJeWyqVFSKD08n3v3fvk9V7uylh4hRUIKxBW4H9XAAjfnDowLMs6FMMUIg4E9UgA8IoAq6O3W4V2OaAB9VlCZPF2zkrswKoaY/OJ8vZ5q/k4VaprUESCLFJnUDCTe2MtwYQx1cohCJtYLrFPqJ89T+7H/ObnQa4pv6TfOuJYrVorYOoiIvPjMrFrGmL68e0yL8vXWzAiQlx+Gt9d9sL1HkwQ1Rnmn8d30m441WAmMFjkwAfpQ2ORzHQnlI4lnQoPyR2UOncumrrWNz10s/buDn2ZOIpbtY+S0Ay3Lh0D3GsRbSZxvVFRVjFRnawXipKTRjYpiFd0dao6MICiN49zL7YiX5vj0/y2O1UZWHNiRQNlYOJFnfJjamX7FQNwPtI/u6IOjOEhLXRvItJQ2Ly69L6x+DNQnKuq7ErKRa+LrLOmqFI2VNuOFDEVHfmMcbd5TxNJ9yky/PEyBMiJAOosXByFOMOMA0XBqsE6A7K9OYOVRDn343ymbI39iYiCAI6Hy7ljb3xvwewO9ELRPadzuMwQuObqQFkuqlhRZghSow6MIl+gPdEvD9d1XbQ3+7Hx+jkr0SUdKJuXG1frpq5Hp8VTnAb9s37PD3yp3T8kGWiohRUIK9DrCnwBdDG4PkCx5SoAAAAASUVORK5CYII=');
-
-                        const icon = FileWrapper.withContents('icon.png', iconData);
-                        resourcesFiles.push(icon);
                         const manifestDotJson = FileWrapper.withContents('manifest.json', manifestDotJsonData);
                         const enDotLproj = FileWrapper.withChildren('en.lproj', enDotLprojFiles);
                         resourcesFiles.push(enDotLproj);

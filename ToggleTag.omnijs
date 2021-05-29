@@ -21,42 +21,30 @@
     const tagableItems = (objects) => {
         return objects.filter(item => (item instanceof Task || item instanceof Project));
     }
-    
+
     const allSelectedItemsHaveTag = (selection, selectedTag) => {
-        for (let i = 0; i < selection.length; i++) {
-            if (!new Set(selection[i].tags).has(selectedTag)) {
-                return false;
-            }
-        }
-        return true;
+        return selection.every(item => (item.tags && item.tags.includes(selectedTag)));
     }
-    
-    const findTagAndSiblings = (options, tagGroup) => {
-        let searchResult = false;
+
+    const findTagAndSiblings = (options, tagGroup = tags) => {
         if (options && options.tagName) {
-            if (typeof tagGroup === 'undefined') {
-                tagGroup = tags;
-            }
             if (tagGroup.length > 0) {
-                for (let i = 0; i < tagGroup.length; i++) {
-                    testedTag = tagGroup[i];
+                for (testedTag of tagGroup) {
                     if (testedTag.name === options.tagName) {
-                        searchResult = {
+                        return {
                             'selectedTag' : testedTag,
                             'siblingTags' : tagGroup.filter(tag => tag !== testedTag)
                         };
-                        break;
                     } else {
                         let childTest = findTagAndSiblings(options, testedTag.tags);
                         if (childTest) {
-                            searchResult = childTest;
-                            break;
+                            return childTest;
                         }
                     }
-                }
+                };
             }
         }
-        return searchResult;
+        return false;
     }
 
     const toggleTag = (selection, options) => {
@@ -67,22 +55,24 @@
             if (allSelectedItemsHaveTag(items, tagAndSiblings.selectedTag)) {
                 items.forEach(item => item.removeTag(tagAndSiblings.selectedTag));
             } else {
-                items.forEach((item) => {                    
+                items.forEach(item => {                    
                     if (options.removeSiblingTags) {
-                        let currentActionTags = item.tags;
                         let newTags = [];
                         let foundSiblingTag = false;
-                        for (let i = 0; i < currentActionTags.length; i++) {
-                            if (tagAndSiblings.siblingTags.includes(currentActionTags[i])) {
-                                // If we find an existing sibling tag, and haven't added the new tag yet, push that instead
-                                if (!foundSiblingTag) {
-                                    newTags.push(tagAndSiblings.selectedTag);
-                                    foundSiblingTag = true;
+                        if (item.tags) {
+                            newTags = item.tags.map(tag => {
+                                if (tagAndSiblings.siblingTags.includes(tag)) {
+                                    // If we find an existing sibling tag, and haven't added the new tag yet, push that instead
+                                    if (!foundSiblingTag) {
+                                        foundSiblingTag = true;
+                                        return tagAndSiblings.selectedTag;
+                                    }
+                                } else {
+                                    return tag;
                                 }
-                            } else {
-                                newTags.push(currentActionTags[i]);
-                            }
+                            });
                         }
+
                         // If there we're no siblings, add the tag to the end
                         if (!foundSiblingTag) {
                             newTags.push(tagAndSiblings.selectedTag);
