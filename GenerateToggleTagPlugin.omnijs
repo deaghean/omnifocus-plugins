@@ -221,11 +221,11 @@
 "longLabel"   = "Tag: ` + listedTag.fullPath + `";`);
 
                             manifestDotJsonActions.push(`        {
-            "identifier": "toggleTag_` + listedTag.id + `",
+            "identifier": "toggleTag_` + listedTag.id.replaceAll('-', '_dash_') + `",
             "image": "tag"
         },`);
-                            resourcesFiles.push(FileWrapper.withContents('toggleTag_' + listedTag.id + '.js', tagData));
-                            enDotLprojFiles.push(FileWrapper.withContents('toggleTag_' + listedTag.id + '.strings', tagDataStrings));
+                            resourcesFiles.push(FileWrapper.withContents('toggleTag_' + listedTag.id.replaceAll('-', '_dash_') + '.js', tagData));
+                            enDotLprojFiles.push(FileWrapper.withContents('toggleTag_' + listedTag.id.replaceAll('-', '_dash_') + '.strings', tagDataStrings));
                             i++;
                         });
 
