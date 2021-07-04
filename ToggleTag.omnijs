@@ -4,7 +4,8 @@
     "type": "action",
     "version": "1.1",
     "description": "Toggle a given tag",
-    "label" : "Toggle Tag"
+    "label" : "Toggle Tag",
+    "image": "tag"
 }*/
 (() => {
 

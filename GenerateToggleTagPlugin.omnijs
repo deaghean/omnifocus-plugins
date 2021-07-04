@@ -3,11 +3,12 @@
     "targets": ["omnifocus"],
     "type": "action",
     "identifier": "com.josh-hughes.omnifocusplugins.GenerateToggleTagPlugin",
+    "image": "gearshape.2",
     "version": "1.0",
     "description": "Generates a plugin that contains Toggle Tag actions for every tag in your library",
     "label": "Generate Toggle Tag Plugin",
     "mediumLabel": "Generate Tag Plugin",
-    "paletteLabel": "Generate Tag Plugin",
+    "paletteLabel": "Generate Tag Plugin"
 }*/
 (() => {
     const action = new PlugIn.Action(function () {

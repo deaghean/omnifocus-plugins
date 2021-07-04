@@ -5,7 +5,7 @@
 	"version": "1.0.1",
 	"actions": [
 		{ 
-		    "image":"icon.png",
+		    "image":"clock.arrow.2.circlepath",
 		    "identifier": "SetReviewDate"
 		},
 	]

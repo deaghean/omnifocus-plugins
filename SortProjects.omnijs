@@ -3,6 +3,7 @@
     "targets": ["omnifocus"],
     "author": "Josh Hughes",
     "identifier": "com.josh-hughes.SortProjects",
+    "image": "arrow.up.arrow.down",
     "version": "1.0",
     "description": "Sort projects by availability, dates, and tag order",
     "label": "Sort Projects",
